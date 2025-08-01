@@ -14,7 +14,7 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6; /* Tailwind gray-100 */
+        background-color: #f3f4f6;
       }
       /* Custom styling for the progress slider thumb to match the new theme */
       input[type="range"]::-webkit-slider-thumb {
@@ -35,6 +35,11 @@
         border-radius: 50%;
         cursor: pointer;
       }
+      /* Progress bar animation */
+      @keyframes fill {
+        from { width: 0%; }
+        to { width: 100%; }
+      }
     </style>
 </head>
 <body>
@@ -44,7 +49,7 @@
     const { useState, useEffect } = React;
     const { createRoot } = ReactDOM;
 
-    // SVG icons using Lucide-react for a professional look
+    // SVG icons for a professional look
     const PlusIcon = () => (
       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" x2="12" y1="5" y2="19"></line>
@@ -76,7 +81,40 @@
         <path d="m6 6 12 12"></path>
       </svg>
     );
-
+    const ChevronRightIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+    );
+    const ChevronDownIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    );
+    const PlusCircleIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="16"></line>
+            <line x1="8" y1="12" x2="16" y2="12"></line>
+        </svg>
+    );
+    const UserIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+    );
+    const CalendarIcon = () => (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+    );
+    
+    // --- Data Management and Helper Functions ---
+    
     // Helper function to format dates
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A';
@@ -88,53 +126,71 @@
       });
     };
 
-    // Helper function to calculate the percentage that should be complete
-    const calculatePercentShouldBeComplete = (task) => {
-      if (!task.programmeStartDate || !task.programmeEndDate) {
-        return 0;
-      }
-      const start = new Date(task.programmeStartDate);
-      const end = new Date(task.programmeEndDate);
-      const now = new Date();
-
-      // If task hasn't started or is already finished, handle edge cases
-      if (now < start) return 0;
-      if (now > end) return 100;
-
-      const totalDuration = end.getTime() - start.getTime();
-      const elapsedDuration = now.getTime() - start.getTime();
-
-      return Math.min(100, Math.floor((elapsedDuration / totalDuration) * 100));
+    // Recursive function to get all tasks from a nested structure
+    const getAllTasks = (items) => {
+        let tasks = [];
+        items.forEach(item => {
+            if (item.type === 'task') {
+                tasks.push(item);
+            } else if (item.children) {
+                tasks = tasks.concat(getAllTasks(item.children));
+            }
+        });
+        return tasks;
     };
 
-    // Helper function to estimate a new completion date based on current progress
-    const estimateNewCompletionDate = (task) => {
-      if (!task.actualStartDate || !task.percentComplete || task.percentComplete === 0) {
-        return 'N/A';
-      }
-      const start = new Date(task.actualStartDate);
-      const now = new Date();
-      const elapsedDuration = now.getTime() - start.getTime();
-      const totalEstimatedDuration = elapsedDuration / (task.percentComplete / 100);
-      const newCompletionDate = new Date(start.getTime() + totalEstimatedDuration);
-      return formatDate(newCompletionDate.toISOString().split('T')[0]);
+    // Calculate overall progress for a site
+    const calculateSiteProgress = (site) => {
+        const tasks = getAllTasks(site.phases);
+        if (tasks.length === 0) return 0;
+        const totalProgress = tasks.reduce((acc, task) => acc + (task.percentComplete || 0), 0);
+        return Math.floor(totalProgress / tasks.length);
     };
 
-    // Main App Component
+    // Estimate site completion date based on tasks
+    const estimateSiteCompletionDate = (site) => {
+        const tasks = getAllTasks(site.phases);
+        if (tasks.length === 0) return 'N/A';
+
+        const now = new Date();
+        let latestEstimatedDate = null;
+
+        tasks.forEach(task => {
+            if (task.actualStartDate && task.percentComplete > 0 && task.percentComplete < 100) {
+                const start = new Date(task.actualStartDate);
+                const elapsedDuration = now.getTime() - start.getTime();
+                const totalEstimatedDuration = elapsedDuration / (task.percentComplete / 100);
+                const newCompletionDate = new Date(start.getTime() + totalEstimatedDuration);
+                if (!latestEstimatedDate || newCompletionDate > latestEstimatedDate) {
+                    latestEstimatedDate = newCompletionDate;
+                }
+            } else if (task.programmeEndDate) {
+                const programEndDate = new Date(task.programmeEndDate);
+                if (!latestEstimatedDate || programEndDate > latestEstimatedDate) {
+                    latestEstimatedDate = programEndDate;
+                }
+            }
+        });
+        return latestEstimatedDate ? formatDate(latestEstimatedDate.toISOString().split('T')[0]) : 'N/A';
+    };
+    
+    // --- Main App Component ---
+    
     const App = () => {
       const [sites, setSites] = useState([]);
       const [activeSiteId, setActiveSiteId] = useState(null);
-      const [isModalOpen, setIsModalOpen] = useState(false);
       const [isAddSiteModalOpen, setIsAddSiteModalOpen] = useState(false);
-      const [isAddOrEditTaskModalOpen, setIsAddOrEditTaskModalOpen] = useState(false);
-      const [currentTask, setCurrentTask] = useState(null);
+      const [isAddOrEditItemModalOpen, setIsAddOrEditItemModalOpen] = useState(false);
+      const [currentItem, setCurrentItem] = useState(null);
+      const [parentPath, setParentPath] = useState([]);
 
       // Load data from localStorage on initial render
       useEffect(() => {
         try {
           const storedData = localStorage.getItem('construction-tracker-data');
           if (storedData) {
-            setSites(JSON.parse(storedData));
+            const parsedData = JSON.parse(storedData);
+            setSites(parsedData);
           }
         } catch (e) {
           console.error('Failed to load data from localStorage', e);
@@ -156,256 +212,87 @@
         const newSite = {
           id: `site-${Date.now()}`,
           name: siteName,
-          tasks: [],
+          phases: [],
         };
         setSites([...sites, newSite]);
         setIsAddSiteModalOpen(false);
       };
 
-      // Handle deleting a site
-      const handleDeleteSite = (siteId) => {
-        const isConfirmed = window.confirm('Are you sure you want to delete this site and all its tasks?');
-        if (isConfirmed) {
-          setSites(sites.filter(site => site.id !== siteId));
-          if (activeSiteId === siteId) {
-            setActiveSiteId(null);
-          }
-        }
-      };
-
-      // Handle adding or editing a task
-      const handleSaveTask = (siteId, taskData) => {
+      // Handle adding a new phase, section, or task
+      const handleSaveItem = (siteId, itemData) => {
         setSites(sites.map(site => {
-          if (site.id === siteId) {
-            // Find existing task to update
-            const taskExists = site.tasks.find(task => task.id === taskData.id);
-            if (taskExists) {
-              // Log the update if the task already exists
-              const updatedTask = {
-                ...taskData,
-                updateLog: [
-                  ...taskData.updateLog,
-                  {
-                    timestamp: new Date().toISOString(),
-                    percentComplete: taskData.percentComplete,
-                    actualEndDate: taskData.actualEndDate,
-                  }
-                ]
-              };
-              return {
-                ...site,
-                tasks: site.tasks.map(task =>
-                  task.id === taskData.id ? updatedTask : task
-                ),
-              };
-            } else {
-              // Add a new task
-              const newTask = {
-                ...taskData,
-                id: `task-${Date.now()}`,
-                updateLog: [{
-                  timestamp: new Date().toISOString(),
-                  percentComplete: taskData.percentComplete,
-                  actualEndDate: taskData.actualEndDate,
-                }]
-              };
-              return { ...site, tasks: [...site.tasks, newTask] };
-            }
-          }
-          return site;
-        }));
-        setIsAddOrEditTaskModalOpen(false);
-        setCurrentTask(null);
-      };
-
-      // Handle deleting a task
-      const handleDeleteTask = (siteId, taskId) => {
-        const isConfirmed = window.confirm('Are you sure you want to delete this task?');
-        if (isConfirmed) {
-          setSites(sites.map(site => {
             if (site.id === siteId) {
-              return {
-                ...site,
-                tasks: site.tasks.filter(task => task.id !== taskId)
-              };
+                const updatedSite = { ...site };
+                // Find the parent to add the new item to
+                let parent = updatedSite;
+                let path = parentPath;
+                for (let i = 0; i < path.length; i += 2) {
+                    const itemType = path[i];
+                    const itemId = path[i+1];
+                    const childrenKey = itemType === 'site' ? 'phases' : 'children';
+                    parent = parent[childrenKey].find(item => item.id === itemId);
+                }
+
+                if (itemData.id) {
+                    // Update existing item
+                    const childrenKey = parentPath[0] === 'site' ? 'phases' : 'children';
+                    parent[childrenKey] = parent[childrenKey].map(item => item.id === itemData.id ? {
+                        ...item,
+                        ...itemData,
+                        updateLog: item.type === 'task' ? [...(item.updateLog || []), { timestamp: new Date().toISOString(), percentComplete: itemData.percentComplete, actualEndDate: itemData.actualEndDate }] : []
+                    } : item);
+                } else {
+                    // Add new item
+                    const childrenKey = parentPath[0] === 'site' ? 'phases' : 'children';
+                    const newItem = {
+                        ...itemData,
+                        id: `${itemData.type}-${Date.now()}`,
+                        children: itemData.type !== 'task' ? [] : undefined,
+                        updateLog: itemData.type === 'task' ? [{ timestamp: new Date().toISOString(), percentComplete: itemData.percentComplete, actualEndDate: itemData.actualEndDate }] : undefined,
+                    };
+                    parent[childrenKey].push(newItem);
+                }
+                return updatedSite;
             }
             return site;
-          }));
-        }
+        }));
+        setIsAddOrEditItemModalOpen(false);
+        setCurrentItem(null);
+        setParentPath([]);
       };
 
-      // Get the currently selected site
+      // Handle deleting an item
+      const handleDeleteItem = (siteId, itemId, itemType, path) => {
+          const isConfirmed = window.confirm(`Are you sure you want to delete this ${itemType}? This will also delete any nested items.`);
+          if (isConfirmed) {
+              setSites(sites.map(site => {
+                  if (site.id === siteId) {
+                      const updatedSite = { ...site };
+                      if (itemType === 'site') {
+                          return null; // Handle site deletion in the parent component
+                      }
+                      
+                      let parent = updatedSite;
+                      for (let i = 0; i < path.length - 2; i += 2) {
+                          const childrenKey = path[i] === 'site' ? 'phases' : 'children';
+                          parent = parent[childrenKey].find(item => item.id === path[i+1]);
+                      }
+                      
+                      const childrenKey = path[path.length - 2] === 'site' ? 'phases' : 'children';
+                      parent[childrenKey] = parent[childrenKey].filter(item => item.id !== itemId);
+                      return updatedSite;
+                  }
+                  return site;
+              }).filter(Boolean));
+              if (itemType === 'site' && activeSiteId === siteId) {
+                  setActiveSiteId(null);
+              }
+          }
+      };
+
       const activeSite = sites.find(site => site.id === activeSiteId);
 
-      // Modal for adding/editing a task
-      const TaskModal = ({ site, task, onClose, onSave }) => {
-        const [taskData, setTaskData] = useState(task || {
-          name: '',
-          programmeStartDate: '',
-          programmeEndDate: '',
-          actualStartDate: '',
-          actualEndDate: '',
-          percentComplete: 0,
-          managerSuggestedDate: '',
-          updateLog: []
-        });
-
-        const handleChange = (e) => {
-          const { name, value } = e.target;
-          setTaskData({ ...taskData, [name]: value });
-        };
-
-        const handleSave = () => {
-          onSave(site.id, taskData);
-        };
-
-        const percentShouldBeComplete = calculatePercentShouldBeComplete(taskData);
-        const estimatedNewCompletion = estimateNewCompletionDate(taskData);
-
-        return (
-          <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">{task ? 'Edit Task' : 'Add New Task'}</h2>
-                <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors duration-200">
-                  <XIcon />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Task Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={taskData.name}
-                      onChange={handleChange}
-                      placeholder="e.g., Foundation Work"
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Program Start Date</label>
-                    <input
-                      type="date"
-                      name="programmeStartDate"
-                      value={taskData.programmeStartDate}
-                      onChange={handleChange}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Program End Date</label>
-                    <input
-                      type="date"
-                      name="programmeEndDate"
-                      value={taskData.programmeEndDate}
-                      onChange={handleChange}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Actual Start Date</label>
-                    <input
-                      type="date"
-                      name="actualStartDate"
-                      value={taskData.actualStartDate}
-                      onChange={handleChange}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Actual End Date</label>
-                    <input
-                      type="date"
-                      name="actualEndDate"
-                      value={taskData.actualEndDate}
-                      onChange={handleChange}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <label className="text-gray-600 font-semibold mb-1">Manager Suggested Date</label>
-                    <input
-                      type="date"
-                      name="managerSuggestedDate"
-                      value={taskData.managerSuggestedDate}
-                      onChange={handleChange}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex flex-col col-span-1 md:col-span-2">
-                    <label className="text-gray-600 font-semibold mb-1">Progress (% Complete)</label>
-                    <input
-                      type="range"
-                      name="percentComplete"
-                      min="0"
-                      max="100"
-                      value={taskData.percentComplete}
-                      onChange={handleChange}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <span className="mt-2 text-xl font-bold text-gray-800">{taskData.percentComplete}%</span>
-                  </div>
-                </div>
-
-                <div className="bg-gray-100 p-4 rounded-lg mt-6">
-                  <h3 className="text-lg font-bold text-gray-800 mb-2">Progress Overview</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <p>
-                      <span className="font-semibold text-gray-600">Programme:</span> {taskData.programmeStartDate} to {taskData.programmeEndDate}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-gray-600">Actual:</span> {taskData.actualStartDate} to {taskData.actualEndDate || 'In Progress'}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-gray-600">Current Progress:</span> {taskData.percentComplete}%
-                    </p>
-                    <p>
-                      <span className="font-semibold text-gray-600">Should Be Complete:</span> {percentShouldBeComplete}%
-                    </p>
-                    <p>
-                      <span className="font-semibold text-gray-600">New Estimated Completion:</span> {estimatedNewCompletion}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-gray-600">Manager's Suggested Completion:</span> {formatDate(taskData.managerSuggestedDate)}
-                    </p>
-                  </div>
-                </div>
-
-                {taskData.updateLog && taskData.updateLog.length > 0 && (
-                  <div className="bg-gray-100 p-4 rounded-lg max-h-48 overflow-y-auto">
-                    <h3 className="text-lg font-bold text-gray-800 mb-2">Update History</h3>
-                    <ul className="text-sm text-gray-700 space-y-2">
-                      {taskData.updateLog.map((log, index) => (
-                        <li key={index} className="border-b border-gray-200 pb-2 last:border-b-0">
-                          <strong>{formatDate(log.timestamp.split('T')[0])}:</strong> Progress updated to {log.percentComplete}%. Actual end date: {formatDate(log.actualEndDate)}.
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={onClose}
-                  className="px-6 py-3 text-gray-600 font-semibold bg-gray-200 rounded-full hover:bg-gray-300 transition-colors duration-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-6 py-3 text-white font-semibold bg-blue-600 rounded-full hover:bg-blue-700 transition-colors duration-200"
-                >
-                  Save Task
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      };
-
-      // Modal for adding a new site
+      // --- Modals ---
       const AddSiteModal = ({ onClose, onAdd }) => {
         const [siteName, setSiteName] = useState('');
         return (
@@ -422,7 +309,7 @@
                 value={siteName}
                 onChange={(e) => setSiteName(e.target.value)}
                 placeholder="Enter site name"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-700"
               />
               <div className="flex justify-end gap-3">
                 <button
@@ -433,7 +320,7 @@
                 </button>
                 <button
                   onClick={() => onAdd(siteName)}
-                  className="px-4 py-2 text-white font-semibold bg-blue-600 rounded-full hover:bg-blue-700 transition-colors duration-200"
+                  className="px-4 py-2 text-white font-semibold bg-green-800 rounded-full hover:bg-green-700 transition-colors duration-200"
                 >
                   Add Site
                 </button>
@@ -443,177 +330,324 @@
         );
       };
 
+      const ItemModal = ({ site, item, onClose, onSave, parentPath }) => {
+        const itemType = parentPath[parentPath.length - 2];
+        const [itemData, setItemData] = useState(item || {
+          name: '',
+          type: itemType === 'site' ? 'phase' : (itemType === 'phase' ? 'section' : (itemType === 'section' ? 'subsection' : 'task')),
+          programmeStartDate: '',
+          programmeEndDate: '',
+          actualStartDate: '',
+          actualEndDate: '',
+          percentComplete: 0,
+          managerSuggestedDate: '',
+          updateLog: []
+        });
+
+        const handleChange = (e) => {
+          const { name, value } = e.target;
+          setItemData({ ...itemData, [name]: value });
+        };
+
+        const handleSave = () => {
+          onSave(site.id, itemData);
+        };
+
+        const isTask = itemData.type === 'task';
+        const percentShouldBeComplete = isTask ? calculatePercentShouldBeComplete(itemData) : 0;
+        const estimatedNewCompletion = isTask ? estimateNewCompletionDate(itemData) : 'N/A';
+
+        return (
+          <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">{item ? `Edit ${item.type}` : `Add New ${itemData.type}`}</h2>
+                <button onClick={onClose} className="text-gray-500 hover:text-gray-900 transition-colors duration-200">
+                  <XIcon />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="flex flex-col">
+                    <label className="text-gray-600 font-semibold mb-1">Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={itemData.name}
+                      onChange={handleChange}
+                      placeholder={`e.g., Phase 1`}
+                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700"
+                    />
+                </div>
+                {isTask && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex flex-col">
+                            <label className="text-gray-600 font-semibold mb-1">Program Start Date</label>
+                            <input type="date" name="programmeStartDate" value={itemData.programmeStartDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-gray-600 font-semibold mb-1">Program End Date</label>
+                            <input type="date" name="programmeEndDate" value={itemData.programmeEndDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-gray-600 font-semibold mb-1">Actual Start Date</label>
+                            <input type="date" name="actualStartDate" value={itemData.actualStartDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-gray-600 font-semibold mb-1">Actual End Date</label>
+                            <input type="date" name="actualEndDate" value={itemData.actualEndDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                        </div>
+                        <div className="flex flex-col col-span-1 md:col-span-2">
+                          <label className="text-gray-600 font-semibold mb-1">Progress (% Complete)</label>
+                          <input
+                            type="range"
+                            name="percentComplete"
+                            min="0"
+                            max="100"
+                            value={itemData.percentComplete}
+                            onChange={handleChange}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <span className="mt-2 text-xl font-bold text-gray-800">{itemData.percentComplete}%</span>
+                        </div>
+                        <div className="flex flex-col">
+                            <label className="text-gray-600 font-semibold mb-1">Manager Suggested Date</label>
+                            <input type="date" name="managerSuggestedDate" value={itemData.managerSuggestedDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                        </div>
+                    </div>
+                    <div className="bg-gray-100 p-4 rounded-lg mt-6">
+                        <h3 className="text-lg font-bold text-gray-800 mb-2">Progress Overview</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <p><span className="font-semibold text-gray-600">Programme:</span> {formatDate(itemData.programmeStartDate)} to {formatDate(itemData.programmeEndDate)}</p>
+                            <p><span className="font-semibold text-gray-600">Actual:</span> {formatDate(itemData.actualStartDate)} to {formatDate(itemData.actualEndDate || 'In Progress')}</p>
+                            <p><span className="font-semibold text-gray-600">Current Progress:</span> {itemData.percentComplete}%</p>
+                            <p><span className="font-semibold text-gray-600">Should Be Complete:</span> {percentShouldBeComplete}%</p>
+                            <p><span className="font-semibold text-gray-600">New Estimated Completion:</span> {estimatedNewCompletion}</p>
+                            <p><span className="font-semibold text-gray-600">Manager's Suggested Completion:</span> {formatDate(itemData.managerSuggestedDate)}</p>
+                        </div>
+                    </div>
+                  </>
+                )}
+                {isTask && itemData.updateLog && itemData.updateLog.length > 0 && (
+                  <div className="bg-gray-100 p-4 rounded-lg max-h-48 overflow-y-auto">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">Update History</h3>
+                    <ul className="text-sm text-gray-700 space-y-2">
+                      {itemData.updateLog.map((log, index) => (
+                        <li key={index} className="border-b border-gray-200 pb-2 last:border-b-0">
+                          <strong>{formatDate(log.timestamp.split('T')[0])}:</strong> Progress updated to {log.percentComplete}%. Actual end date: {formatDate(log.actualEndDate)}.
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button onClick={onClose} className="px-6 py-3 text-gray-600 font-semibold bg-gray-200 rounded-full hover:bg-gray-300 transition-colors duration-200">
+                  Cancel
+                </button>
+                <button onClick={handleSave} className="px-6 py-3 text-white font-semibold bg-green-800 rounded-full hover:bg-green-700 transition-colors duration-200">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+      
+      const SiteView = ({ site, onBack, onAdd, onEdit, onDelete }) => {
+          const [expandedItems, setExpandedItems] = useState({});
+
+          const toggleExpand = (itemId) => {
+              setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+          };
+
+          const renderItem = (item, path) => {
+              const childrenKey = item.type === 'site' ? 'phases' : 'children';
+              const hasChildren = item[childrenKey] && item[childrenKey].length > 0;
+              const isExpanded = expandedItems[item.id];
+              const isTask = item.type === 'task';
+              const progress = isTask ? item.percentComplete : calculateSiteProgress({ phases: item.children });
+
+              let nextItemType = 'task';
+              if(item.type === 'site') nextItemType = 'phase';
+              else if(item.type === 'phase') nextItemType = 'section';
+              else if(item.type === 'section') nextItemType = 'subsection';
+              else if(item.type === 'subsection') nextItemType = 'subsection';
+
+              return (
+                  <div key={item.id} className="mb-2">
+                      <div className={`flex items-center justify-between rounded-lg p-4 ${isTask ? 'bg-white shadow-sm' : 'bg-green-500/10 hover:bg-green-500/20'} transition-all duration-200`}>
+                          <div className="flex items-center space-x-3 flex-1">
+                              {hasChildren && (
+                                  <button onClick={() => toggleExpand(item.id)} className="text-gray-600">
+                                      {isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                                  </button>
+                              )}
+                              <span className="font-semibold text-gray-800">{item.name}</span>
+                              <span className="text-sm text-gray-500 italic">({item.type.charAt(0).toUpperCase() + item.type.slice(1)})</span>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                              {!isTask && (
+                                  <button onClick={() => onAdd(item, path)} className="text-green-800 hover:text-green-700 transition-colors duration-200">
+                                      <PlusCircleIcon />
+                                  </button>
+                              )}
+                              <div className="w-24 h-2 rounded-full bg-gray-200">
+                                  <div className={`h-full rounded-full transition-all duration-500`} style={{ width: `${progress}%`, backgroundColor: progress >= 100 ? '#10b981' : '#d4af37' }}></div>
+                              </div>
+                              <span className="text-sm font-semibold text-gray-800 w-10 text-right">{progress}%</span>
+                              <button onClick={() => onEdit(item, path)} className="text-gray-600 hover:text-green-700 transition-colors duration-200">
+                                  <EditIcon />
+                              </button>
+                              <button onClick={() => onDelete(item.id, item.type, path)} className="text-gray-600 hover:text-red-500 transition-colors duration-200">
+                                  <TrashIcon />
+                              </button>
+                          </div>
+                      </div>
+                      {isExpanded && hasChildren && (
+                          <div className="ml-8 mt-2 space-y-2">
+                              {item[childrenKey].map(child => renderItem(child, [...path, item.type, item.id]))}
+                          </div>
+                      )}
+                  </div>
+              );
+          };
+
+          return (
+              <div className="space-y-6">
+                  <header className="flex items-center justify-between">
+                      <h2 className="text-3xl font-bold text-gray-800">{site.name}</h2>
+                      <button onClick={onBack} className="px-6 py-3 rounded-full font-semibold text-gray-600 bg-white shadow-md hover:bg-gray-200 transition-colors duration-200">
+                          Back to Sites
+                      </button>
+                  </header>
+                  <div className="bg-white rounded-xl shadow-md p-6">
+                      <div className="space-y-4">
+                          {site.phases && site.phases.length > 0 ? (
+                              site.phases.map(phase => renderItem(phase, ['site', site.id]))
+                          ) : (
+                              <p className="text-lg text-gray-500 italic">No phases or tasks added yet. Add a new phase to get started.</p>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          );
+      };
+
+      // --- Main Render Logic ---
       return (
         <div className="font-sans antialiased text-gray-800 bg-gray-100 min-h-screen">
-          <div className="container mx-auto p-6 lg:p-10">
-            <header className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b border-gray-300">
-              <h1 className="text-4xl font-extrabold text-gray-900">Construction Tracker</h1>
-              <nav className="mt-4 sm:mt-0 flex flex-wrap gap-3">
-                <button
-                  onClick={() => setActiveSiteId(null)}
-                  className={`px-6 py-3 rounded-full font-semibold transition-colors duration-200 ${
-                    activeSiteId === null
-                      ? 'bg-blue-600 text-white shadow-lg'
-                      : 'bg-white text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  Sites
-                </button>
-                <button
-                  onClick={() => setIsAddSiteModalOpen(true)}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold bg-green-500 text-white shadow-lg hover:bg-green-600 transition-colors duration-200"
-                >
-                  <PlusIcon /> Add Site
-                </button>
-              </nav>
-            </header>
+            <div className="container mx-auto p-6 lg:p-10">
+                <header className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b-2 border-green-800">
+                    <h1 className="text-4xl font-extrabold text-green-800">Construction Tracker</h1>
+                    <nav className="mt-4 sm:mt-0 flex flex-wrap gap-3">
+                        <button
+                          onClick={() => setActiveSiteId(null)}
+                          className={`px-6 py-3 rounded-full font-semibold transition-colors duration-200 ${
+                            activeSiteId === null
+                              ? 'bg-green-800 text-white shadow-lg'
+                              : 'bg-white text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          Sites
+                        </button>
+                        <button
+                          onClick={() => setIsAddSiteModalOpen(true)}
+                          className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white bg-gold-600 shadow-lg hover:bg-gold-700 transition-colors duration-200"
+                          style={{ backgroundColor: '#d4af37' }}
+                        >
+                          <PlusIcon /> Add Site
+                        </button>
+                    </nav>
+                </header>
 
-            {activeSiteId === null ? (
-              // Main Sites Dashboard
-              <div className="space-y-6">
-                <h2 className="text-3xl font-bold text-gray-800">Your Projects</h2>
-                {sites.length === 0 ? (
-                  <p className="text-lg text-gray-500 italic">No sites added yet. Click "Add Site" to get started!</p>
+                {activeSiteId === null ? (
+                    <div className="space-y-6">
+                        <h2 className="text-3xl font-bold text-gray-800">Your Projects</h2>
+                        {sites.length === 0 ? (
+                            <p className="text-lg text-gray-500 italic">No sites added yet. Click "Add Site" to get started!</p>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {sites.map(site => {
+                                    const totalProgress = calculateSiteProgress(site);
+                                    const estimatedDate = estimateSiteCompletionDate(site);
+                                    return (
+                                        <div key={site.id} className="bg-white rounded-xl shadow-md overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
+                                            <div className="p-6">
+                                                <h3 className="text-2xl font-bold text-green-800 mb-2">{site.name}</h3>
+                                                <div className="flex items-center mb-4 space-x-4 text-sm text-gray-600">
+                                                    <span className="flex items-center space-x-1"><UserIcon className="text-green-800" /> {getAllTasks(site.phases).length} Tasks</span>
+                                                    <span className="flex items-center space-x-1"><CalendarIcon className="text-green-800" /> Est. End: {estimatedDate}</span>
+                                                </div>
+                                                
+                                                <div className="flex items-center space-x-4">
+                                                    <div className="flex-1 w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                                                        <div className="h-full rounded-full" style={{ width: `${totalProgress}%`, backgroundColor: totalProgress >= 100 ? '#10b981' : '#d4af37' }}></div>
+                                                    </div>
+                                                    <span className="font-bold text-lg text-green-800 w-12 text-right">{totalProgress}%</span>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-2">
+                                                <button
+                                                  onClick={() => setActiveSiteId(site.id)}
+                                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white bg-green-800 rounded-full font-semibold hover:bg-green-700 transition-colors duration-200"
+                                                >
+                                                  <EyeIcon /> View Details
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteItem(site.id, site.id, 'site', [])}
+                                                  className="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 transition-colors duration-200"
+                                                >
+                                                  <TrashIcon />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {sites.map(site => (
-                      <div key={site.id} className="bg-white rounded-xl shadow-md overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
-                        <div className="p-6">
-                          <h3 className="text-xl font-bold text-gray-900 mb-2">{site.name}</h3>
-                          <p className="text-sm text-gray-500 mb-4">
-                            {site.tasks.length} {site.tasks.length === 1 ? 'task' : 'tasks'}
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => setActiveSiteId(site.id)}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors duration-200"
-                            >
-                              <EyeIcon /> View Site
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSite(site.id)}
-                              className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors duration-200"
-                            >
-                              <TrashIcon />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                    <SiteView
+                        site={activeSite}
+                        onBack={() => setActiveSiteId(null)}
+                        onAdd={(parent, path) => {
+                            setCurrentItem(null);
+                            setParentPath(path);
+                            setIsAddOrEditItemModalOpen(true);
+                        }}
+                        onEdit={(item, path) => {
+                            setCurrentItem(item);
+                            setParentPath(path);
+                            setIsAddOrEditItemModalOpen(true);
+                        }}
+                        onDelete={handleDeleteItem}
+                    />
                 )}
-              </div>
-            ) : (
-              // Site Details View
-              <div className="space-y-6">
-                <h2 className="text-3xl font-bold text-gray-800">{activeSite?.name}</h2>
-                <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-semibold text-gray-700">Tasks</h3>
-                  <button
-                    onClick={() => {
-                      setCurrentTask(null);
-                      setIsAddOrEditTaskModalOpen(true);
-                    }}
-                    className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors duration-200"
-                  >
-                    <PlusIcon /> Add Task
-                  </button>
-                </div>
-                {activeSite && activeSite.tasks.length === 0 ? (
-                  <p className="text-lg text-gray-500 italic">No tasks for this site. Add one to get started!</p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4">
-                    {activeSite && activeSite.tasks.map(task => {
-                      const percentShouldBeComplete = calculatePercentShouldBeComplete(task);
-                      const statusColor = task.percentComplete >= percentShouldBeComplete ? 'bg-green-500' : 'bg-red-500';
-                      const estimatedNewCompletion = estimateNewCompletionDate(task);
-                      const isBehindSchedule = task.percentComplete < percentShouldBeComplete;
+            </div>
 
-                      return (
-                        <div key={task.id} className="bg-white rounded-xl shadow-md p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div className="flex-1">
-                            <h4 className="text-xl font-bold text-gray-900">{task.name}</h4>
-                            <div className="mt-2 text-sm text-gray-600 space-y-1">
-                              <p>
-                                <span className="font-semibold">Programme:</span> {formatDate(task.programmeStartDate)} - {formatDate(task.programmeEndDate)}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Actual:</span> {formatDate(task.actualStartDate)} - {formatDate(task.actualEndDate)}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Estimated Completion:</span> {estimatedNewCompletion}
-                              </p>
-                              {isBehindSchedule && (
-                                <p className="text-red-500 font-semibold flex items-center gap-1">
-                                  ⚠️ Behind Schedule
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex-shrink-0 flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-4 sm:mt-0">
-                            <div className="flex flex-col items-center">
-                              <div className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg text-white" style={{
-                                background: `conic-gradient(#3B82F6 ${task.percentComplete}%, #E5E7EB 0%)`
-                              }}>
-                                {task.percentComplete}%
-                              </div>
-                              <span className="text-sm mt-1 text-gray-600">Actual</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                              <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-lg text-white ${statusColor}`}>
-                                {percentShouldBeComplete}%
-                              </div>
-                              <span className="text-sm mt-1 text-gray-600">Planned</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  setCurrentTask(task);
-                                  setIsAddOrEditTaskModalOpen(true);
-                                }}
-                                className="p-3 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors duration-200"
-                                title="Edit Task"
-                              >
-                                <EditIcon />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTask(activeSite.id, task.id)}
-                                className="p-3 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors duration-200"
-                                title="Delete Task"
-                              >
-                                <TrashIcon />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+            {isAddSiteModalOpen && (
+                <AddSiteModal onClose={() => setIsAddSiteModalOpen(false)} onAdd={handleAddSite} />
             )}
-          </div>
-
-          {isAddSiteModalOpen && (
-            <AddSiteModal onClose={() => setIsAddSiteModalOpen(false)} onAdd={handleAddSite} />
-          )}
-
-          {isAddOrEditTaskModalOpen && (
-            <TaskModal
-              site={activeSite}
-              task={currentTask}
-              onClose={() => setIsAddOrEditTaskModalOpen(false)}
-              onSave={handleSaveTask}
-            />
-          )}
+            
+            {isAddOrEditItemModalOpen && (
+                <ItemModal
+                    site={activeSite}
+                    item={currentItem}
+                    parentPath={parentPath}
+                    onClose={() => setIsAddOrEditItemModalOpen(false)}
+                    onSave={handleSaveItem}
+                />
+            )}
         </div>
       );
     };
 
     const rootElement = document.getElementById('root');
     const root = createRoot(rootElement);
-    root.render(<App />);
-
+    if (rootElement) {
+      root.render(<App />);
+    }
     </script>
 </body>
 </html>
