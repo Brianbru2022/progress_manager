@@ -35,10 +35,9 @@
         border-radius: 50%;
         cursor: pointer;
       }
-      /* Progress bar animation */
-      @keyframes fill {
-        from { width: 0%; }
-        to { width: 100%; }
+      /* Custom shadow for the header */
+      .header-shadow {
+        box-shadow: 0 4px 6px -1px rgba(28, 69, 53, 0.1), 0 2px 4px -1px rgba(28, 69, 53, 0.06);
       }
     </style>
 </head>
@@ -331,10 +330,10 @@
       };
 
       const ItemModal = ({ site, item, onClose, onSave, parentPath }) => {
-        const itemType = parentPath[parentPath.length - 2];
+        const itemTypeFromPath = parentPath[parentPath.length - 2];
         const [itemData, setItemData] = useState(item || {
           name: '',
-          type: itemType === 'site' ? 'phase' : (itemType === 'phase' ? 'section' : (itemType === 'section' ? 'subsection' : 'task')),
+          type: itemTypeFromPath === 'site' ? 'phase' : (itemTypeFromPath === 'phase' ? 'section' : (itemTypeFromPath === 'section' ? 'subsection' : 'task')),
           programmeStartDate: '',
           programmeEndDate: '',
           actualStartDate: '',
@@ -375,7 +374,7 @@
                       value={itemData.name}
                       onChange={handleChange}
                       placeholder={`e.g., Phase 1`}
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700"
                     />
                 </div>
                 {isTask && (
@@ -383,19 +382,19 @@
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="flex flex-col">
                             <label className="text-gray-600 font-semibold mb-1">Program Start Date</label>
-                            <input type="date" name="programmeStartDate" value={itemData.programmeStartDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                            <input type="date" name="programmeStartDate" value={itemData.programmeStartDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
                         </div>
                         <div className="flex flex-col">
                             <label className="text-gray-600 font-semibold mb-1">Program End Date</label>
-                            <input type="date" name="programmeEndDate" value={itemData.programmeEndDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                            <input type="date" name="programmeEndDate" value={itemData.programmeEndDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
                         </div>
                         <div className="flex flex-col">
                             <label className="text-gray-600 font-semibold mb-1">Actual Start Date</label>
-                            <input type="date" name="actualStartDate" value={itemData.actualStartDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                            <input type="date" name="actualStartDate" value={itemData.actualStartDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
                         </div>
                         <div className="flex flex-col">
                             <label className="text-gray-600 font-semibold mb-1">Actual End Date</label>
-                            <input type="date" name="actualEndDate" value={itemData.actualEndDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                            <input type="date" name="actualEndDate" value={itemData.actualEndDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
                         </div>
                         <div className="flex flex-col col-span-1 md:col-span-2">
                           <label className="text-gray-600 font-semibold mb-1">Progress (% Complete)</label>
@@ -412,7 +411,7 @@
                         </div>
                         <div className="flex flex-col">
                             <label className="text-gray-600 font-semibold mb-1">Manager Suggested Date</label>
-                            <input type="date" name="managerSuggestedDate" value={itemData.managerSuggestedDate} onChange={handleChange} className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
+                            <input type="date" name="managerSuggestedDate" value={itemData.managerSuggestedDate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-700" />
                         </div>
                     </div>
                     <div className="bg-gray-100 p-4 rounded-lg mt-6">
@@ -467,16 +466,12 @@
               const isExpanded = expandedItems[item.id];
               const isTask = item.type === 'task';
               const progress = isTask ? item.percentComplete : calculateSiteProgress({ phases: item.children });
-
-              let nextItemType = 'task';
-              if(item.type === 'site') nextItemType = 'phase';
-              else if(item.type === 'phase') nextItemType = 'section';
-              else if(item.type === 'section') nextItemType = 'subsection';
-              else if(item.type === 'subsection') nextItemType = 'subsection';
-
-              return (
-                  <div key={item.id} className="mb-2">
-                      <div className={`flex items-center justify-between rounded-lg p-4 ${isTask ? 'bg-white shadow-sm' : 'bg-green-500/10 hover:bg-green-500/20'} transition-all duration-200`}>
+              const nextItemType = item.type === 'site' ? 'phase' : (item.type === 'phase' ? 'section' : (item.type === 'section' ? 'subsection' : null));
+              const canAdd = nextItemType !== null;
+              
+              const itemToRender = (
+                  <div key={item.id} className="relative group">
+                      <div className={`flex items-center justify-between rounded-lg p-4 transition-all duration-200 ${isTask ? 'bg-white shadow-sm' : 'bg-green-500/10 hover:bg-green-500/20'}`}>
                           <div className="flex items-center space-x-3 flex-1">
                               {hasChildren && (
                                   <button onClick={() => toggleExpand(item.id)} className="text-gray-600">
@@ -487,7 +482,7 @@
                               <span className="text-sm text-gray-500 italic">({item.type.charAt(0).toUpperCase() + item.type.slice(1)})</span>
                           </div>
                           <div className="flex items-center space-x-3">
-                              {!isTask && (
+                              {canAdd && (
                                   <button onClick={() => onAdd(item, path)} className="text-green-800 hover:text-green-700 transition-colors duration-200">
                                       <PlusCircleIcon />
                                   </button>
@@ -511,16 +506,31 @@
                       )}
                   </div>
               );
+              
+              return itemToRender;
           };
+
+          const siteProgress = calculateSiteProgress(site);
 
           return (
               <div className="space-y-6">
                   <header className="flex items-center justify-between">
                       <h2 className="text-3xl font-bold text-gray-800">{site.name}</h2>
-                      <button onClick={onBack} className="px-6 py-3 rounded-full font-semibold text-gray-600 bg-white shadow-md hover:bg-gray-200 transition-colors duration-200">
-                          Back to Sites
-                      </button>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-48 h-3 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${siteProgress}%`, backgroundColor: siteProgress >= 100 ? '#10b981' : '#d4af37' }}></div>
+                        </div>
+                        <span className="font-bold text-lg text-green-800">{siteProgress}%</span>
+                        <button onClick={onBack} className="px-6 py-3 rounded-full font-semibold text-gray-600 bg-white shadow-md hover:bg-gray-200 transition-colors duration-200">
+                            Back to Sites
+                        </button>
+                      </div>
                   </header>
+                  <div className="flex justify-end">
+                      <button onClick={() => onAdd(site, ['site', site.id])} className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white bg-green-800 shadow-lg hover:bg-green-700 transition-colors duration-200">
+                          <PlusIcon /> Add Phase
+                      </button>
+                  </div>
                   <div className="bg-white rounded-xl shadow-md p-6">
                       <div className="space-y-4">
                           {site.phases && site.phases.length > 0 ? (
@@ -538,7 +548,7 @@
       return (
         <div className="font-sans antialiased text-gray-800 bg-gray-100 min-h-screen">
             <div className="container mx-auto p-6 lg:p-10">
-                <header className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b-2 border-green-800">
+                <header className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b-2 border-green-800 header-shadow rounded-b-xl px-6 py-4 bg-white">
                     <h1 className="text-4xl font-extrabold text-green-800">Construction Tracker</h1>
                     <nav className="mt-4 sm:mt-0 flex flex-wrap gap-3">
                         <button
@@ -553,7 +563,7 @@
                         </button>
                         <button
                           onClick={() => setIsAddSiteModalOpen(true)}
-                          className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white bg-gold-600 shadow-lg hover:bg-gold-700 transition-colors duration-200"
+                          className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white shadow-lg transition-colors duration-200"
                           style={{ backgroundColor: '#d4af37' }}
                         >
                           <PlusIcon /> Add Site
@@ -562,17 +572,19 @@
                 </header>
 
                 {activeSiteId === null ? (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         <h2 className="text-3xl font-bold text-gray-800">Your Projects</h2>
                         {sites.length === 0 ? (
-                            <p className="text-lg text-gray-500 italic">No sites added yet. Click "Add Site" to get started!</p>
+                            <div className="bg-white rounded-xl shadow-md p-8 text-center">
+                                <p className="text-lg text-gray-500 italic">No sites added yet. Click "Add Site" to get started!</p>
+                            </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {sites.map(site => {
                                     const totalProgress = calculateSiteProgress(site);
                                     const estimatedDate = estimateSiteCompletionDate(site);
                                     return (
-                                        <div key={site.id} className="bg-white rounded-xl shadow-md overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-xl">
+                                        <div key={site.id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl">
                                             <div className="p-6">
                                                 <h3 className="text-2xl font-bold text-green-800 mb-2">{site.name}</h3>
                                                 <div className="flex items-center mb-4 space-x-4 text-sm text-gray-600">
@@ -613,12 +625,12 @@
                         onBack={() => setActiveSiteId(null)}
                         onAdd={(parent, path) => {
                             setCurrentItem(null);
-                            setParentPath(path);
+                            setParentPath([...path, parent.id]);
                             setIsAddOrEditItemModalOpen(true);
                         }}
                         onEdit={(item, path) => {
                             setCurrentItem(item);
-                            setParentPath(path);
+                            setParentPath([...path, item.id]);
                             setIsAddOrEditItemModalOpen(true);
                         }}
                         onDelete={handleDeleteItem}
